@@ -1,0 +1,9 @@
+.venv/
+.ufbt/
+reference/
+dist/*
+!dist/flipperpass.fap
+*.o
+.DS_Store
+
+.vscode/

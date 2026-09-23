@@ -1,0 +1,14 @@
+App(
+    appid="flipperpass",
+    name="FlipperPass",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="flipperpass_app",
+    stack_size=4096,
+    requires=["gui", "storage"],
+    fap_category="Sub-GHz",
+    fap_version=(0, 1),
+    fap_description="Exchange and collect nearby Flipper profile cards",
+    fap_author="FlipperPass contributors",
+    fap_icon_assets="images",
+    sources=["flipperpass.c", "protocol.c"],
+)
