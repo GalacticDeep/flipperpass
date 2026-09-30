@@ -247,7 +247,6 @@ static void show_menu(App* app) {
     menu_begin(app, PageMenu, "FlipperPass");
     menu_item(app, "Exchange status", 0);
     menu_item(app, "Collected cards", 1);
-    menu_item(app, "Edit nickname", 2);
     menu_item(app, "Edit status", 3);
     menu_item(app, "Choose avatar", 4);
     menu_item(app, "Current event/location", 5);
@@ -294,7 +293,8 @@ static void show_info(App* app) {
     snprintf(
         text,
         sizeof(text),
-        "%s\n%s | %u cards\nAt: %s\n%s",
+        "Name: %s\n%s\n%s | %u cards\nAt: %s\n%s",
+        app->profile.nickname,
         app->radio_status,
         bands[app->band],
         (unsigned)app->count,
@@ -308,13 +308,9 @@ static void show_info(App* app) {
 
 static void edit_done(void* context) {
     App* app = context;
-    size_t capacity = app->editing == 2 ? FP_NICK_SIZE :
-                      app->editing == 3 ? FP_STATUS_SIZE :
-                                          FP_LOCATION_SIZE;
+    size_t capacity = app->editing == 3 ? FP_STATUS_SIZE : FP_LOCATION_SIZE;
     if(!fp_text_valid(app->edit, capacity, app->editing == 3)) return;
-    char* target = app->editing == 2 ? app->profile.nickname :
-                   app->editing == 3 ? app->profile.status :
-                                       app->location;
+    char* target = app->editing == 3 ? app->profile.status : app->location;
     memset(target, 0, capacity);
     memcpy(target, app->edit, strlen(app->edit));
     save_config(app);
@@ -351,23 +347,16 @@ static void select_item(void* context, uint32_t index) {
             for(size_t i = 0; i < COUNT_OF(bands); i++)
                 menu_item(app, bands[i], i);
             menu_end(app);
-        } else {
+        } else if(index == 3 || index == 5) {
             app->editing = index;
             app->page = PageEdit;
-            const char* source = index == 2 ? app->profile.nickname :
-                                 index == 3 ? app->profile.status :
-                                              app->location;
-            size_t capacity = index == 2 ? FP_NICK_SIZE :
-                              index == 3 ? FP_STATUS_SIZE :
-                                           FP_LOCATION_SIZE;
+            const char* source = index == 3 ? app->profile.status : app->location;
+            size_t capacity = index == 3 ? FP_STATUS_SIZE : FP_LOCATION_SIZE;
             memset(app->edit, 0, sizeof(app->edit));
             memcpy(app->edit, source, strlen(source));
             text_input_reset(app->input);
             text_input_set_header_text(
-                app->input,
-                index == 2 ? "Nickname (12 chars)" :
-                index == 3 ? "Status (30 chars)" :
-                             "Event e.g. DEF CON");
+                app->input, index == 3 ? "Status (30 chars)" : "Event e.g. DEF CON");
             text_input_set_result_callback(app->input, edit_done, app, app->edit, capacity, true);
             text_input_set_minimum_length(app->input, index == 3 ? 0 : 1);
             view_dispatcher_switch_to_view(app->dispatcher, 1);
@@ -394,17 +383,40 @@ int32_t flipperpass_app(void* context) {
     app->storage = furi_record_open(RECORD_STORAGE);
     storage_common_mkdir(app->storage, EXT_PATH("apps_data"));
     storage_common_mkdir(app->storage, FP_DIR);
+    subghz_devices_init();
+    app->device = subghz_devices_get_by_name(SUBGHZ_DEVICE_CC1101_INT_NAME);
     app->config_saved = load_config_path(app, FP_DIR "/profile.dat") ||
                         load_config_path(app, FP_DIR "/profile.bak");
     if(!app->config_saved) {
         memset(&app->profile, 0, sizeof(app->profile));
         furi_hal_random_fill_buf(app->profile.id, sizeof(app->profile.id));
-        strcpy(app->profile.nickname, "Flipper");
         strcpy(app->profile.status, "Hello nearby Flippers!");
         strcpy(app->location, "Unlabeled");
         app->band = 0;
-        save_config(app);
+        // Prefer a shared regional default, never a per-device quiet-channel scan.
+        const uint8_t preferred_bands[] = {2, 3};
+        for(size_t i = 0; i < COUNT_OF(preferred_bands); i++) {
+            uint8_t band = preferred_bands[i];
+            if(app->device && subghz_devices_is_frequency_valid(app->device, frequencies[band]) &&
+               furi_hal_region_is_frequency_allowed(frequencies[band])) {
+                app->band = band;
+                break;
+            }
+        }
     }
+    // Refresh old profiles too: the device passport is the source of our name.
+    char passport_name[FP_NICK_SIZE] = {0};
+    const char* device_name = furi_hal_version_get_name_ptr();
+    if(device_name) {
+        for(size_t i = 0; i < sizeof(passport_name) - 1 && device_name[i]; i++) {
+            unsigned char c = (unsigned char)device_name[i];
+            passport_name[i] = c >= 32 && c <= 126 ? (char)c : '?';
+        }
+    }
+    if(!passport_name[0]) strcpy(passport_name, "Flipper");
+    bool name_changed = strcmp(app->profile.nickname, passport_name) != 0;
+    memcpy(app->profile.nickname, passport_name, sizeof(passport_name));
+    if(!app->config_saved || name_changed) save_config(app);
     load_cards(app);
     app->gui = furi_record_open(RECORD_GUI);
     app->dispatcher = view_dispatcher_alloc();
@@ -418,8 +430,6 @@ int32_t flipperpass_app(void* context) {
     view_dispatcher_add_view(app->dispatcher, 1, text_input_get_view(app->input));
     view_dispatcher_add_view(app->dispatcher, 2, widget_get_view(app->widget));
     view_dispatcher_attach_to_gui(app->dispatcher, app->gui, ViewDispatcherTypeFullscreen);
-    subghz_devices_init();
-    app->device = subghz_devices_get_by_name(SUBGHZ_DEVICE_CC1101_INT_NAME);
     app->worker = subghz_tx_rx_worker_alloc();
     start_radio(app);
     if(app->band)

@@ -1,6 +1,6 @@
 # FlipperPass
 
-A small StreetPass-inspired Flipper Zero app: exchange nickname, pixel avatar, and a short status with other Flippers running FlipperPass and browse saved cards later. Each incoming card records **your manually selected current event/location**, such as DefCon or GrrCon. No GPS, repeat encounter counters, Nintendo interoperability, phone, or external radio board.
+A small StreetPass-inspired Flipper Zero app: exchange the device’s passport name, pixel avatar, and a short status with other Flippers running FlipperPass and browse saved cards later. Each incoming card records **your manually selected current event/location**, such as DefCon or GrrCon. No GPS, repeat encounter counters, Nintendo interoperability, phone, or external radio board.
 
 **Status: experimental hardware-test build.** 
 Built against official firmware **1.4.3**, hardware target **f7**, SDK API **87.1**, with uFBT **0.2.6**. Compilation and exported-symbol checks pass. Host protocol tests pass. No Flipper hardware was available: wireless delivery, device UI, SD persistence, power use, and range have **not** been verified on a device. A compiled application does not prove over-the-air exchange works.
@@ -11,8 +11,8 @@ This flipper application was made with the help of Codex and GPt-6 Astra, becaus
 1. Use a Flipper Zero running official firmware 1.4.3 with a working microSD card. Other releases require an SDK-compatible build; custom firmware is not required or tested.
 2. Copy `dist/flipperpass.fap` to the SD card's `apps/Sub-GHz/` directory using qFlipper's file manager.
 3. Open **Apps → Sub-GHz → FlipperPass**.
-4. Press Back from the initial status screen to reach the menu. Set **Edit nickname**, **Edit status**, **Choose avatar**, and **Current event/location**.
-5. In **Radio band / Off**, choose the same locally permitted frequency on both Flippers. Firmware regional restrictions are enforced. On first launch the radio is off; after selection, the saved band starts automatically on future launches.
+4. If the status screen appears, press Back to reach the menu. The name comes automatically from the Flipper’s passport. Set **Edit status**, **Choose avatar**, and **Current event/location**.
+5. Fresh profiles automatically choose the first device-supported, firmware-permitted frequency in this order: **433.92 MHz → 868.35 MHz**. If neither is permitted, radio stays off. 915.00 MHz remains a manual option and is never selected automatically. Existing profiles retain their saved selection, including Off. Use **Radio band / Off** to override it; both Flippers must use the same frequency. The saved band starts automatically on future launches.
 6. Keep both apps open. First beacon is queued after 2–6 seconds; subsequent beacons every 12–18 seconds. Allow at least 60 seconds during testing. **Exchange status** displays the worker state and saved-card count, not confirmation that another device received your profile.
 7. Open **Collected cards**, select a card, and read its avatar, status, and `At:` label. Back returns to the list; Back from the main menu exits and stops the radio. Editing/browsing keeps radio exchange active. **Radio band / Off → Off** stops exchange while preserving browsing.
 
@@ -20,7 +20,7 @@ An event label is local context, not a location claimed by the sender. Change it
 
 ## Included behavior
 
-- Nickname: 12 printable ASCII characters; status: 30; event label: 24.
+- Name: read from the device passport on every launch, replacing any previously chosen nickname (up to 12 printable ASCII characters; unsupported characters become `?`, with `Flipper` as a fallback if unavailable); status: 30; event label: 24.
 - Four 12×12 pixel avatars: Smile, Cat, Robot, Ghost.
 - Random, persisted 64-bit app identity, independent of the device serial number.
 - Up to 100 saved cards. One snapshot per sender identity **and exact local event label**. Repeated beacons do not add cards or update the original snapshot. The same person at another event can have a separate card. No repeat counts.
